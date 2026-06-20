@@ -1,92 +1,183 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
+
+const { TelegramClient } = require("telegram");
+const { StringSession } = require("telegram/sessions");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Main endpoint: /tg?key=1month&id=USERNAME
-app.get('/tg', async (req, res) => {
-  const { key, id } = req.query;
 
-  // Validate key
-  if (!key || key !== '1month') {
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid or missing API key. Use ?key=1month'
-    });
-  }
+// Telegram ENV
+const API_ID = Number(process.env.API_ID);
+const API_HASH = process.env.API_HASH;
+const SESSION = process.env.SESSION;
 
-  // Validate id (username)
-  if (!id) {
-    return res.status(400).json({
-      success: false,
-      error: 'Username (id) is required. Use ?id=username'
-    });
-  }
 
+// Telegram Client
+
+const client = new TelegramClient(
+  new StringSession(SESSION),
+  API_ID,
+  API_HASH,
+  { connectionRetries: 5 }
+);
+
+
+(async () => {
   try {
-    // Clean username: remove @ if present
-    const cleanUsername = id.replace('@', '');
-
-    // Call the external API
-    const apiUrl = `https://api.igfollows.site/TG/index.php?type=user&key=OGGYxKRISH&term=${encodeURIComponent(cleanUsername)}`;
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      throw new Error(`API responded with status: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Check if API returned success
-    if (data.success && data.result) {
-      return res.json({
-        success: true,
-        phone: data.result.number,
-        country: data.result.country,
-        country_code: data.result.country_code,
-        tg_id: data.result.tg_id,
-        message: 'Details fetched successfully'
-      });
-    } else {
-      return res.status(404).json({
-        success: false,
-        error: data.message || 'User not found or invalid username'
-      });
-    }
-
-  } catch (error) {
-    console.error('API fetch error:', error.message);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to fetch data from external API'
-    });
+    await client.connect();
+    console.log("Telegram Connected ✅");
+  } catch(err){
+    console.log("TG Error:", err.message);
   }
-});
+})();
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Telegram Phone Number API',
-    endpoints: {
-      '/tg': 'GET - Get phone number from Telegram username (requires key & id)',
-      '/health': 'GET - Health check'
-    },
-    example: '/tg?key=1month&id=kd_s_r',
-    note: 'Key must be "1month"'
+// Username -> ID
+
+async function getTelegramId(user){
+
+  user = user.replace("@","");
+
+  if(/^\d+$/.test(user)){
+    return user;
+  }
+
+  try{
+
+    let entity = await client.getEntity(user);
+
+    return entity.id.toString();
+
+  }catch(e){
+
+    return null;
+
+  }
+
+}
+
+
+// MAIN API
+
+app.get("/tg", async(req,res)=>{
+
+ try{
+
+ const {key,id}=req.query;
+
+
+ if(key !== "1month"){
+
+  return res.status(401).json({
+   success:false,
+   error:"Wrong API key"
   });
+
+ }
+
+
+ if(!id){
+
+  return res.json({
+   success:false,
+   error:"Enter id"
+  });
+
+ }
+
+
+ let tg_id = await getTelegramId(id);
+
+
+ if(!tg_id){
+
+  return res.json({
+   success:false,
+   error:"Username not found"
+  });
+
+ }
+
+
+ let url =
+`https://api.igfollows.site/TG/index.php?type=user&key=OGGYxKRISH&term=${tg_id}`;
+
+
+ let response = await fetch(url);
+
+ let data = await response.json();
+
+
+
+ if(data.success && data.result){
+
+
+ return res.json({
+
+ success:true,
+
+ username:id,
+
+ tg_id:data.result.tg_id,
+
+ phone:data.result.number,
+
+ country:data.result.country,
+
+ country_code:data.result.country_code
+
+ });
+
+
+ }
+
+
+ res.json({
+
+ success:false,
+ error:"No record found"
+
+ });
+
+
+ }catch(e){
+
+ res.status(500).json({
+
+ success:false,
+ error:e.message
+
+ });
+
+ }
+
+
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`📞 Example: http://localhost:${PORT}/tg?key=1month&id=kd_s_r`);
+
+// Home
+
+app.get("/",(req,res)=>{
+
+res.json({
+
+status:"API ONLINE ✅",
+
+example:"/tg?key=1month&id=username"
+
+});
+
+});
+
+
+
+app.listen(PORT,()=>{
+
+console.log("Running on",PORT);
+
 });
