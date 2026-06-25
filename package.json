@@ -1,9 +1,20 @@
 {
-  "scripts":{
-    "start":"node server.js"
+  "name": "sty-tg-proxy",
+  "version": "1.0.0",
+  "description": "STY Telegram API Proxy",
+  "main": "server.js",
+
+  "scripts": {
+    "start": "node server.js"
   },
-  "dependencies":{
-    "express":"latest",
-    "cors":"latest"
+
+  "dependencies": {
+    "axios": "^1.6.8",
+    "cors": "^2.8.5",
+    "express": "^4.18.3"
+  },
+
+  "engines": {
+    "node": ">=18"
   }
 }
