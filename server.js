@@ -1,129 +1,132 @@
 const express = require("express");
+const axios = require("axios");
 const cors = require("cors");
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 
-// MAIN API
-// /tg?key=1month&id=123456789
+// =====================
+// Modify Response
+// Change by + remove credits
+// =====================
+
+function modifyData(data) {
+
+  if (Array.isArray(data)) {
+    return data.map(modifyData);
+  }
+
+  if (data && typeof data === "object") {
+
+    const changed = {};
+
+    for (const [key, value] of Object.entries(data)) {
+
+      // Remove API owner fields
+      if (
+        key === "tag" ||
+        key === "developer" ||
+        key === "key_expiry"
+      ) {
+        continue;
+      }
+
+      // Change by field
+      if (key === "by") {
+        changed[key] = "@sahilxalone";
+      } else {
+        changed[key] = modifyData(value);
+      }
+
+    }
+
+    return changed;
+  }
+
+  return data;
+}
+
+
+// =====================
+// HOME
+// =====================
+
+app.get("/", (req, res) => {
+
+  res.json({
+    status: "STY Proxy Running ✅",
+    by: "@sahilxalone"
+  });
+
+});
+
+
+// =====================
+// TG API
+// =====================
 
 app.get("/tg", async (req, res) => {
 
-  const { key, id } = req.query;
-
-
-  // API KEY CHECK
-  if (key !== "1month") {
-
-    return res.status(401).json({
-      success:false,
-      error:"Invalid API key"
-    });
-
-  }
-
-
-  // ID CHECK
-  if (!id) {
-
-    return res.status(400).json({
-      success:false,
-      error:"id required"
-    });
-
-  }
-
-
   try {
+
+    const search =
+      req.query.info ||
+      req.query.id;
+
+
+    if (!search) {
+
+      return res.json({
+        success: false,
+        error: "info required"
+      });
+
+    }
 
 
     const api =
-    `https://api.igfollows.site/TG/index.php?type=user&key=OGGYxKRISH&term=${encodeURIComponent(id)}`;
+      "https://api.igfollows.site/TG/index.php?type=user&key=OGGYxKRISH&term=" +
+      encodeURIComponent(search);
 
 
-    const response = await fetch(api);
+    const response = await axios.get(api, {
+
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      },
+
+      timeout: 30000
+
+    });
 
 
-    let data = await response.json();
+    const result = modifyData(response.data);
 
 
-
-    // REMOVE ORIGINAL API INFO
-
-    delete data.tag;
-    delete data.developer;
-    delete data.key_expiry;
-
-
-
-    // SEND CLEAN RESPONSE
-
-    return res.json(data);
-
+    res.json(result);
 
 
   } catch (e) {
 
-
-    return res.status(500).json({
-
-      success:false,
-
-      error:"API fetch failed"
-
+    res.status(500).json({
+      success: false,
+      error: e.message
     });
-
 
   }
 
 });
 
 
+// =====================
+// SERVER START
+// =====================
 
-// HOME
-
-app.get("/", (req,res)=>{
-
-
- res.json({
-
-  status:"ONLINE ✅",
-
-  api:"/tg?key=1month&id=123456789"
-
- });
-
-
-});
-
-
-
-// HEALTH
-
-app.get("/health",(req,res)=>{
-
-
- res.json({
-
-  status:"OK",
-
-  time:new Date().toISOString()
-
- });
-
-
-});
-
-
-
-// START SERVER
-
-app.listen(PORT,()=>{
-
- console.log(`🚀 Server running on ${PORT}`);
-
+app.listen(PORT, () => {
+  console.log("Running on PORT " + PORT);
 });
